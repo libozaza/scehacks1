@@ -2,11 +2,27 @@
 
 const API_BASE = "http://localhost:8000";
 let isTracking = false;
+let connectionRetries = 0;
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 5000; // 5 seconds
 
 // Initialize extension
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   console.log("What Did I Just Do? extension installed");
-  isTracking = true;
+
+  // Load tracking state from storage
+  const result = await chrome.storage.local.get(["isTracking"]);
+  isTracking = result.isTracking !== false; // Default to true if not set
+
+  // Test backend connection
+  await testBackendConnection();
+
+  // Set up periodic connection check every 30 seconds
+  setInterval(async () => {
+    if (isTracking) {
+      await testBackendConnection();
+    }
+  }, 30000);
 });
 
 // Track tab creation
@@ -115,6 +131,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.type === "toggle_tracking") {
     isTracking = request.enabled;
+    // Save state to storage
+    chrome.storage.local.set({ isTracking: isTracking });
     sendResponse({ success: true, tracking: isTracking });
   }
 
@@ -123,8 +141,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Send browser event to backend
+// Test backend connection
+async function testBackendConnection() {
+  try {
+    const response = await fetch(`${API_BASE}/`, {
+      method: "GET",
+      timeout: 5000,
+    });
+
+    if (response.ok) {
+      console.log("Backend connection successful");
+      connectionRetries = 0;
+      return true;
+    } else {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Backend connection failed:", error);
+    connectionRetries++;
+
+    if (connectionRetries < MAX_RETRIES) {
+      console.log(
+        `Retrying connection in ${
+          RETRY_DELAY / 1000
+        } seconds... (${connectionRetries}/${MAX_RETRIES})`
+      );
+      setTimeout(testBackendConnection, RETRY_DELAY);
+    } else {
+      console.error("Max retries reached. Backend appears to be down.");
+      isTracking = false;
+      chrome.storage.local.set({ isTracking: false });
+    }
+    return false;
+  }
+}
+
+// Send browser event to backend with retry logic
 async function sendBrowserEvent(eventType, data) {
+  if (!isTracking) return;
+
   try {
     const response = await fetch(`${API_BASE}/browser-event`, {
       method: "POST",
@@ -140,9 +195,30 @@ async function sendBrowserEvent(eventType, data) {
     });
 
     if (!response.ok) {
-      console.error("Failed to send browser event:", response.statusText);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
+
+    // Reset retry counter on successful send
+    connectionRetries = 0;
   } catch (error) {
     console.error("Error sending browser event:", error);
+
+    // If this is a connection error, try to reconnect
+    if (error.name === "TypeError" || error.message.includes("fetch")) {
+      connectionRetries++;
+
+      if (connectionRetries < MAX_RETRIES) {
+        console.log(
+          `Retrying connection in ${
+            RETRY_DELAY / 1000
+          } seconds... (${connectionRetries}/${MAX_RETRIES})`
+        );
+        setTimeout(() => testBackendConnection(), RETRY_DELAY);
+      } else {
+        console.error("Max retries reached. Disabling tracking.");
+        isTracking = false;
+        chrome.storage.local.set({ isTracking: false });
+      }
+    }
   }
 }
