@@ -1,4 +1,4 @@
-#!/bin/bash
+eract#!/bin/bash
 
 # What Did I Just Do? - Start Script
 echo "🚀 Starting What Did I Just Do? - Personal Work Activity Tracker"
