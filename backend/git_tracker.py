@@ -43,6 +43,16 @@ class GitTracker:
                 if self.last_commit_hash and current_commit != self.last_commit_hash:
                     # New commit detected
                     commit = self.repo.head.commit
+                    # Get detailed file information
+                    files_changed = []
+                    for file_path, stats in commit.stats.files.items():
+                        files_changed.append({
+                            "path": file_path,
+                            "insertions": stats.get('insertions', 0),
+                            "deletions": stats.get('deletions', 0),
+                            "lines": stats.get('lines', 0)
+                        })
+                    
                     await Event.create_git_event(
                         "git_commit",
                         git_hash=commit.hexsha,
@@ -51,7 +61,8 @@ class GitTracker:
                             "author": commit.author.name,
                             "email": commit.author.email,
                             "date": commit.committed_datetime.isoformat(),
-                            "files_changed": len(commit.stats.files)
+                            "files_changed": len(commit.stats.files),
+                            "files": files_changed
                         }
                     )
                     self.last_commit_hash = current_commit
@@ -107,13 +118,24 @@ class GitTracker:
                 
                 for commit_hash in newly_pushed:
                     commit = self.repo.commit(commit_hash)
+                    # Get detailed file information for pushed commit
+                    files_changed = []
+                    for file_path, stats in commit.stats.files.items():
+                        files_changed.append({
+                            "path": file_path,
+                            "insertions": stats.get('insertions', 0),
+                            "deletions": stats.get('deletions', 0),
+                            "lines": stats.get('lines', 0)
+                        })
+                    
                     await Event.create_git_event(
                         "git_push",
                         git_hash=commit_hash,
                         git_message=commit.message.strip(),
                         details={
                             "author": commit.author.name,
-                            "files_changed": len(commit.stats.files)
+                            "files_changed": len(commit.stats.files),
+                            "files": files_changed
                         }
                     )
                 
@@ -130,7 +152,7 @@ class GitTracker:
         """Main polling loop"""
         while self.running:
             await self._check_git_changes()
-            await asyncio.sleep(30)  # Poll every 30 seconds
+            await asyncio.sleep(5)  # Poll every 5 seconds for faster updates
     
     def start(self):
         """Start Git tracking"""

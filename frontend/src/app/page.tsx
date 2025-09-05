@@ -55,6 +55,7 @@ export default function Home() {
   const [localDirectoryPath, setLocalDirectoryPath] = useState<string>("");
   const [gitRepoPath, setGitRepoPath] = useState<string>("");
   const [trackingMode, setTrackingMode] = useState<"local" | "git" | "both">("local");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Poll for events every 500ms for real-time updates
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function Home() {
     };
 
     fetchEvents();
-    const interval = setInterval(fetchEvents, 500);
+    const interval = setInterval(fetchEvents, 200);
     return () => clearInterval(interval);
   }, []);
 
@@ -140,11 +141,17 @@ export default function Home() {
 
   const refreshEvents = async () => {
     try {
+      setIsRefreshing(true);
+      console.log("Refreshing events...");
       const response = await fetch("http://localhost:8000/events");
       const data = await response.json();
+      console.log("Refreshed events:", data.events?.length || 0, "events");
       setEvents(data.events || []);
     } catch (error) {
       console.error("Error fetching events:", error);
+      alert("Failed to refresh events. Please check if the backend is running.");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -293,6 +300,38 @@ export default function Home() {
     return event.event_type;
   };
 
+  const getEventDetails = (event: Event) => {
+    if (event.event_type.startsWith('git_') && event.details?.files) {
+      const files = event.details.files;
+      if (files.length > 0) {
+        return (
+          <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+            <div className="font-medium mb-1">Files changed:</div>
+            <div className="space-y-1">
+              {files.slice(0, 5).map((file: any, index: number) => (
+                <div key={index} className="flex items-center gap-2">
+                  <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                    {file.path}
+                  </span>
+                  {file.insertions > 0 && (
+                    <span className="text-green-600">+{file.insertions}</span>
+                  )}
+                  {file.deletions > 0 && (
+                    <span className="text-red-600">-{file.deletions}</span>
+                  )}
+                </div>
+              ))}
+              {files.length > 5 && (
+                <div className="text-gray-500">... and {files.length - 5} more files</div>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
@@ -332,10 +371,11 @@ export default function Home() {
                       variant="outline" 
                       size="sm" 
                       onClick={refreshEvents}
+                      disabled={isRefreshing}
                       className="flex items-center gap-2"
                     >
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh
+                      <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      {isRefreshing ? 'Refreshing...' : 'Refresh'}
                     </Button>
                     <Button 
                       variant="destructive" 
@@ -345,7 +385,7 @@ export default function Home() {
                       className="flex items-center gap-2"
                     >
                       <Trash2 className="h-4 w-4" />
-                      Clear Database
+                      Clear Timeline History
                     </Button>
                   </div>
                 </div>
@@ -376,6 +416,7 @@ export default function Home() {
                           <p className="text-sm text-gray-700 dark:text-gray-300">
                             {getEventDescription(event)}
                           </p>
+                          {getEventDetails(event)}
                         </div>
                       </div>
                     ))}
