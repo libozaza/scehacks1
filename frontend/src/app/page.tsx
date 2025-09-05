@@ -410,7 +410,7 @@ export default function Home() {
                               {event.event_type.replace('_', ' ')}
                             </Badge>
                             <span className="text-sm text-gray-500">
-                              {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
+                              {new Date(event.timestamp).toLocaleString()}
                             </span>
                           </div>
                           <p className="text-sm text-gray-700 dark:text-gray-300">

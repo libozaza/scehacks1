@@ -156,6 +156,66 @@ fi
 
 echo -e "${GREEN}✅ Backend service started (PID: $BACKEND_PID)${NC}"
 
+# Start git tracking
+echo -e "\n${BLUE}🔧 Setting up Git tracking...${NC}"
+echo -e "${YELLOW}💡 Git tracking will monitor your repository for commits and pushes${NC}"
+
+# Initialize git tracking status
+GIT_REPO_STARTED=0
+
+# Function to start git tracking
+start_git_tracking() {
+    local repo_path=$1
+    echo -e "${BLUE}📁 Starting Git tracking for: $repo_path${NC}"
+    
+    # Make the API call to start git tracking
+    local response=$(curl -s -X POST http://localhost:8000/start-git-tracking \
+        -H "Content-Type: application/json" \
+        -d "{\"git_repo_path\": \"$repo_path\"}")
+    
+    if echo "$response" | grep -q "Started tracking"; then
+        echo -e "${GREEN}✅ Git tracking started successfully${NC}"
+        GIT_REPO_STARTED=1
+        return 0
+    else
+        echo -e "${RED}❌ Failed to start Git tracking: $response${NC}"
+        return 1
+    fi
+}
+
+# Try to detect current directory as git repo
+if [ -d ".git" ]; then
+    current_dir=$(pwd)
+    echo -e "${BLUE}🔍 Detected Git repository in current directory: $current_dir${NC}"
+    echo -e "${YELLOW}   Do you want to track this repository? (y/n)${NC}"
+    read -p "   " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        start_git_tracking "$current_dir"
+    fi
+fi
+
+# If no git repo detected or user declined, prompt for path
+if [ -z "$GIT_REPO_STARTED" ]; then
+    echo -e "${YELLOW}📁 Please enter the path to your Git repository to track:${NC}"
+    echo -e "${BLUE}   (Leave empty to skip Git tracking)${NC}"
+    read -p "   Git repo path: " git_repo_path
+    
+    if [ ! -z "$git_repo_path" ]; then
+        # Expand tilde and resolve relative paths
+        git_repo_path=$(eval echo "$git_repo_path")
+        
+        if [ -d "$git_repo_path" ] && [ -d "$git_repo_path/.git" ]; then
+            start_git_tracking "$git_repo_path"
+        else
+            echo -e "${RED}❌ Invalid Git repository path: $git_repo_path${NC}"
+            echo -e "${YELLOW}   Make sure the path exists and contains a .git directory${NC}"
+        fi
+    else
+        echo -e "${BLUE}⏭️  Skipping Git tracking${NC}"
+    fi
+fi
+
 # Start frontend
 echo -e "\n${BLUE}🎨 Starting frontend service...${NC}"
 cd frontend
@@ -191,6 +251,7 @@ echo -e "${BLUE}📚 API Docs:       http://localhost:8000/docs${NC}"
 echo -e "${BLUE}================================================================${NC}"
 echo -e "\n${YELLOW}💡 Tips:${NC}"
 echo -e "   • Visit http://localhost:3000 to start tracking your productivity"
+echo -e "   • Git tracking monitors commits and pushes automatically"
 echo -e "   • Install the Chrome extension from the chrome-extension/ folder"
 echo -e "   • Press Ctrl+C to stop all services"
 echo -e "\n${BLUE}📋 Chrome Extension Setup:${NC}"
