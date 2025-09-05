@@ -10,15 +10,15 @@ init();
 
 function init() {
   // Check if tracking is enabled
-  chrome.runtime.sendMessage({ type: 'get_tracking_status' }, (response) => {
+  chrome.runtime.sendMessage({ type: "get_tracking_status" }, (response) => {
     if (response && response.tracking) {
       startTracking();
     }
   });
-  
+
   // Listen for tracking toggle messages
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === 'toggle_tracking') {
+    if (request.type === "toggle_tracking") {
       if (request.enabled) {
         startTracking();
       } else {
@@ -30,103 +30,135 @@ function init() {
 
 function startTracking() {
   if (isTracking) return;
-  
+
   isTracking = true;
-  
+
   // Track clicks on links and buttons
-  document.addEventListener('click', handleClick, true);
-  
+  document.addEventListener("click", handleClick, true);
+
   // Track form inputs and typing
-  document.addEventListener('input', handleInput, true);
-  document.addEventListener('keydown', handleKeydown, true);
-  
+  document.addEventListener("input", handleInput, true);
+  document.addEventListener("keydown", handleKeydown, true);
+
   // Track focus/blur events
-  document.addEventListener('focusin', handleFocusIn, true);
-  document.addEventListener('focusout', handleFocusOut, true);
-  
+  document.addEventListener("focusin", handleFocusIn, true);
+  document.addEventListener("focusout", handleFocusOut, true);
+
   // Track scroll events (throttled)
-  document.addEventListener('scroll', throttle(handleScroll, 2000), true);
-  
-  console.log('What Did I Just Do? tracking started');
+  document.addEventListener("scroll", throttle(handleScroll, 2000), true);
+
+  console.log("What Did I Just Do? tracking started");
 }
 
 function stopTracking() {
   if (!isTracking) return;
-  
+
   isTracking = false;
-  
-  document.removeEventListener('click', handleClick, true);
-  document.removeEventListener('input', handleInput, true);
-  document.removeEventListener('keydown', handleKeydown, true);
-  document.removeEventListener('focusin', handleFocusIn, true);
-  document.removeEventListener('focusout', handleFocusOut, true);
-  document.removeEventListener('scroll', handleScroll, true);
-  
-  console.log('What Did I Just Do? tracking stopped');
+
+  document.removeEventListener("click", handleClick, true);
+  document.removeEventListener("input", handleInput, true);
+  document.removeEventListener("keydown", handleKeydown, true);
+  document.removeEventListener("focusin", handleFocusIn, true);
+  document.removeEventListener("focusout", handleFocusOut, true);
+  document.removeEventListener("scroll", handleScroll, true);
+
+  console.log("What Did I Just Do? tracking stopped");
 }
 
 function handleClick(event) {
   if (!isTracking) return;
-  
+
   const now = Date.now();
   if (now - lastClickTime < 1000) return; // Throttle clicks
-  
+
   lastClickTime = now;
-  
+
   const target = event.target;
   const tagName = target.tagName.toLowerCase();
-  
+
   // Only track meaningful clicks
-  if (tagName === 'a' || tagName === 'button' || target.closest('a') || target.closest('button')) {
-    const link = target.closest('a') || target;
-    const href = link.href || link.getAttribute('href');
-    const text = target.textContent?.trim() || target.alt || target.title || 'Unknown';
-    
-    sendActivity('browser_click', {
+  if (
+    tagName === "a" ||
+    tagName === "button" ||
+    target.closest("a") ||
+    target.closest("button")
+  ) {
+    const link = target.closest("a") || target;
+    const href = link.href || link.getAttribute("href");
+    const text =
+      target.textContent?.trim() || target.alt || target.title || "Unknown";
+
+    // Create a more descriptive click message
+    let clickDescription = `Clicked ${tagName}`;
+    if (href && !href.startsWith("javascript:")) {
+      try {
+        const url = new URL(href);
+        if (url.hostname !== window.location.hostname) {
+          clickDescription = `Clicked link to ${url.hostname}`;
+        } else {
+          clickDescription = `Clicked link: ${text.substring(0, 50)}`;
+        }
+      } catch (e) {
+        clickDescription = `Clicked link: ${text.substring(0, 50)}`;
+      }
+    } else if (text && text !== "Unknown") {
+      clickDescription = `Clicked button: ${text.substring(0, 50)}`;
+    }
+
+    sendActivity("browser_click", {
       element: tagName,
       href: href,
       text: text.substring(0, 100), // Limit text length
       x: event.clientX,
-      y: event.clientY
+      y: event.clientY,
+      description: clickDescription,
     });
   }
 }
 
 function handleInput(event) {
   if (!isTracking) return;
-  
+
   const target = event.target;
   const tagName = target.tagName.toLowerCase();
-  
+
   // Only track form inputs, not sensitive fields
-  if (tagName === 'input' || tagName === 'textarea') {
-    const type = target.type || 'text';
-    const name = target.name || target.id || 'unnamed';
-    
+  if (tagName === "input" || tagName === "textarea") {
+    const type = target.type || "text";
+    const name = target.name || target.id || "unnamed";
+
     // Skip sensitive input types
-    if (['password', 'email', 'tel', 'number'].includes(type)) {
+    if (["password", "email", "tel", "number"].includes(type)) {
       return;
     }
-    
+
     // Throttle typing events
     const now = Date.now();
     if (now - lastTypingTime < 2000) {
       clearTimeout(typingTimeout);
       typingTimeout = setTimeout(() => {
-        sendActivity('browser_typing', {
+        const typingDescription = `Typed in ${name} (${type}) - ${
+          target.value?.length || 0
+        } characters`;
+        sendActivity("browser_typing", {
           element: tagName,
           type: type,
           name: name,
-          length: target.value?.length || 0
+          length: target.value?.length || 0,
+          description: typingDescription,
         });
       }, 1000);
     } else {
       lastTypingTime = now;
-      sendActivity('browser_typing', {
+      const typingDescription = `Typed in ${name} (${type}) - ${
+        target.value?.length || 0
+      } characters`;
+      sendActivity("browser_typing", {
         element: tagName,
         type: type,
         name: name,
-        length: target.value?.length || 0
+        length: target.value?.length || 0,
+        description: typingDescription,
       });
     }
   }
@@ -134,16 +166,31 @@ function handleInput(event) {
 
 function handleKeydown(event) {
   if (!isTracking) return;
-  
+
   // Track special key combinations
   if (event.ctrlKey || event.metaKey) {
     const key = event.key.toLowerCase();
-    if (['c', 'v', 'x', 'z', 's', 'f', 'r'].includes(key)) {
-      sendActivity('browser_shortcut', {
+    if (["c", "v", "x", "z", "s", "f", "r"].includes(key)) {
+      const shortcutName =
+        {
+          c: "Copy",
+          v: "Paste",
+          x: "Cut",
+          z: "Undo",
+          s: "Save",
+          f: "Find",
+          r: "Refresh",
+        }[key] || key.toUpperCase();
+
+      const modifier = event.ctrlKey ? "Ctrl" : "Cmd";
+      const shortcutDescription = `Used keyboard shortcut: ${modifier}+${key.toUpperCase()} (${shortcutName})`;
+
+      sendActivity("browser_shortcut", {
         key: key,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
-        shiftKey: event.shiftKey
+        shiftKey: event.shiftKey,
+        description: shortcutDescription,
       });
     }
   }
@@ -151,63 +198,83 @@ function handleKeydown(event) {
 
 function handleFocusIn(event) {
   if (!isTracking) return;
-  
+
   const target = event.target;
   const tagName = target.tagName.toLowerCase();
-  
-  if (['input', 'textarea', 'select'].includes(tagName)) {
-    sendActivity('browser_focus', {
+
+  if (["input", "textarea", "select"].includes(tagName)) {
+    sendActivity("browser_focus", {
       element: tagName,
-      type: target.type || 'text',
-      name: target.name || target.id || 'unnamed'
+      type: target.type || "text",
+      name: target.name || target.id || "unnamed",
     });
   }
 }
 
 function handleFocusOut(event) {
   if (!isTracking) return;
-  
+
   const target = event.target;
   const tagName = target.tagName.toLowerCase();
-  
-  if (['input', 'textarea', 'select'].includes(tagName)) {
-    sendActivity('browser_blur', {
+
+  if (["input", "textarea", "select"].includes(tagName)) {
+    sendActivity("browser_blur", {
       element: tagName,
-      type: target.type || 'text',
-      name: target.name || target.id || 'unnamed'
+      type: target.type || "text",
+      name: target.name || target.id || "unnamed",
     });
   }
 }
 
 function handleScroll(event) {
   if (!isTracking) return;
-  
-  sendActivity('browser_scroll', {
+
+  sendActivity("browser_scroll", {
     scrollX: window.scrollX,
     scrollY: window.scrollY,
     scrollHeight: document.documentElement.scrollHeight,
-    clientHeight: document.documentElement.clientHeight
+    clientHeight: document.documentElement.clientHeight,
   });
 }
 
+// Throttle browser activity events to prevent spam
+let lastActivityTime = {};
+const ACTIVITY_THROTTLE_MS = 2000; // 2 seconds between same event types
+
 function sendActivity(eventType, data) {
+  const now = Date.now();
+  const lastTime = lastActivityTime[eventType] || 0;
+
+  // Skip if this event type was sent too recently
+  if (now - lastTime < ACTIVITY_THROTTLE_MS) {
+    return;
+  }
+
+  // Skip certain noisy event types entirely
+  const noisyEvents = ["browser_scroll", "browser_focus", "browser_blur"];
+  if (noisyEvents.includes(eventType)) {
+    return;
+  }
+
+  lastActivityTime[eventType] = now;
+
   chrome.runtime.sendMessage({
-    type: 'browser_activity',
+    type: "browser_activity",
     eventType: eventType,
-    data: data
+    data: data,
   });
 }
 
 // Utility function to throttle events
 function throttle(func, limit) {
   let inThrottle;
-  return function() {
+  return function () {
     const args = arguments;
     const context = this;
     if (!inThrottle) {
       func.apply(context, args);
       inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
+      setTimeout(() => (inThrottle = false), limit);
     }
   };
 }

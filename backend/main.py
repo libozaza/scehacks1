@@ -284,8 +284,22 @@ async def ask_gemini(question_data: dict):
 @app.post("/browser-event")
 async def add_browser_event(event_data: dict):
     """Add browser activity event from Chrome extension"""
+    event_type = event_data.get("type")
+    
+    # Filter out noisy browser events
+    noisy_events = [
+        'browser_scroll',
+        'browser_focus', 
+        'browser_blur',
+        'browser_window_blur',
+        'browser_window_focus'
+    ]
+    
+    if event_type in noisy_events:
+        return {"message": "Noisy browser event filtered out", "event_id": None}
+    
     event = await Event.create_browser_event(
-        event_type=event_data.get("type"),
+        event_type=event_type,
         url=event_data.get("url"),
         title=event_data.get("title"),
         details=event_data.get("details", {})
