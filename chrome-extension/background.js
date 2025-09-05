@@ -77,7 +77,9 @@ chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   }
 });
 
-// Track window focus/blur (throttled to prevent spam)
+// Window focus/blur events are filtered out to prevent spam
+// Commenting out to completely disable these noisy events
+/*
 let lastWindowFocusTime = 0;
 chrome.windows.onFocusChanged.addListener((windowId) => {
   if (isTracking) {
@@ -97,6 +99,7 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
     }
   }
 });
+*/
 
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

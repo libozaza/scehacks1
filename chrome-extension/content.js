@@ -40,12 +40,12 @@ function startTracking() {
   document.addEventListener("input", handleInput, true);
   document.addEventListener("keydown", handleKeydown, true);
 
-  // Track focus/blur events
-  document.addEventListener("focusin", handleFocusIn, true);
-  document.addEventListener("focusout", handleFocusOut, true);
+  // Focus/blur events are filtered out, so we don't need to track them
+  // document.addEventListener("focusin", handleFocusIn, true);
+  // document.addEventListener("focusout", handleFocusOut, true);
 
-  // Track scroll events (throttled)
-  document.addEventListener("scroll", throttle(handleScroll, 2000), true);
+  // Scroll events are filtered out, so we don't need to track them
+  // document.addEventListener("scroll", throttle(handleScroll, 2000), true);
 
   console.log("What Did I Just Do? tracking started");
 }
@@ -58,9 +58,9 @@ function stopTracking() {
   document.removeEventListener("click", handleClick, true);
   document.removeEventListener("input", handleInput, true);
   document.removeEventListener("keydown", handleKeydown, true);
-  document.removeEventListener("focusin", handleFocusIn, true);
-  document.removeEventListener("focusout", handleFocusOut, true);
-  document.removeEventListener("scroll", handleScroll, true);
+  // document.removeEventListener("focusin", handleFocusIn, true);
+  // document.removeEventListener("focusout", handleFocusOut, true);
+  // document.removeEventListener("scroll", handleScroll, true);
 
   console.log("What Did I Just Do? tracking stopped");
 }
@@ -229,6 +229,8 @@ function handleFocusOut(event) {
 function handleScroll(event) {
   if (!isTracking) return;
 
+  // Scroll events are filtered out in sendActivity, so this won't actually send anything
+  // But we keep the function for consistency with the event listener setup
   sendActivity("browser_scroll", {
     scrollX: window.scrollX,
     scrollY: window.scrollY,
