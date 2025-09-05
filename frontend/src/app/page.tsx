@@ -85,6 +85,28 @@ export default function Home() {
     }
   };
 
+  const generateTimelineReport = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("http://localhost:8000/generate-timeline-report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          events: events
+        }),
+      });
+      const data = await response.json();
+      setDailyReport(data);
+    } catch (error) {
+      console.error("Error generating timeline report:", error);
+      setDailyReport({ report: "Error generating report. Please try again." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchSuggestions = async () => {
     try {
       const response = await fetch("http://localhost:8000/suggestions");
@@ -205,12 +227,23 @@ export default function Home() {
   };
 
   const handleStartGitTracking = async () => {
+    console.log("handleStartGitTracking called with gitRepoPath:", gitRepoPath);
+    
     if (!gitRepoPath.trim()) {
+      console.log("Git repo path is empty, showing alert");
       alert("Please enter the full path to the Git repository you want to track.");
       return;
     }
     
-    console.log("Starting Git repository tracking for:", gitRepoPath);
+    // Clean up the path - remove .git if user accidentally included it
+    let cleanPath = gitRepoPath.trim();
+    if (cleanPath.endsWith('/.git') || cleanPath.endsWith('\\.git')) {
+      cleanPath = cleanPath.replace(/[/\\]\.git$/, '');
+      setGitRepoPath(cleanPath);
+      console.log("Cleaned up path, removed .git suffix:", cleanPath);
+    }
+    
+    console.log("Starting Git repository tracking for:", cleanPath);
     
     try {
       const response = await fetch("http://localhost:8000/start-git-tracking", {
@@ -219,15 +252,21 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ 
-          git_repo_path: gitRepoPath
+          git_repo_path: cleanPath
         }),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       console.log("Git tracking started:", data);
-      alert(`Started tracking Git repository: ${gitRepoPath}`);
+      alert(`Started tracking Git repository: ${cleanPath}`);
     } catch (error) {
       console.error("Error starting Git tracking:", error);
-      alert("Failed to start Git repository tracking. Please check the path and ensure it's a valid Git repository.");
+      alert(`Failed to start Git repository tracking: ${error.message}`);
     }
   };
 
@@ -337,7 +376,7 @@ export default function Home() {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            What Did I Just Do?
+            WorkScope
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Track your work activity with AI-powered insights
@@ -434,12 +473,26 @@ export default function Home() {
                   Daily Productivity Report
                 </CardTitle>
                 <CardDescription>
-                  AI-generated summary of your coding activity
+                  AI-generated summary of your coding activity ({events.length} events to analyze)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button onClick={fetchDailyReport} className="mb-4">
-                  Generate Report
+                <Button 
+                  onClick={generateTimelineReport} 
+                  className="mb-4"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Report...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-4 w-4 mr-2" />
+                      Generate Report
+                    </>
+                  )}
                 </Button>
                 {dailyReport && (
                   <div className="prose dark:prose-invert max-w-none">
@@ -602,9 +655,9 @@ export default function Home() {
                           type="text"
                           value={gitRepoPath}
                           onChange={(e) => setGitRepoPath(e.target.value)}
-                          placeholder="e.g., /Users/username/Documents/my-git-repo"
+                          placeholder="e.g., /Users/username/Documents/my-git-repo (not the .git folder)"
                           className="flex-1"
-                          onKeyPress={(e) => e.key === 'Enter' && handleStartGitTracking()}
+                          onKeyPress={(e) => e.key === 'Enter' && gitRepoPath.trim() && handleStartGitTracking()}
                         />
                         <Button 
                           onClick={handleStartGitTracking}
@@ -615,7 +668,7 @@ export default function Home() {
                         </Button>
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Enter the full path to a Git repository (must contain .git folder)
+                        Enter the full path to a Git repository root directory (not the .git folder inside it)
                       </p>
                     </div>
                   )}

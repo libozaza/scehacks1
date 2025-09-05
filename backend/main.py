@@ -257,6 +257,19 @@ async def get_daily_report():
     report = await gemini_service.generate_daily_report(events)
     return {"report": report}
 
+@app.post("/generate-timeline-report")
+async def generate_timeline_report(timeline_data: dict):
+    """Generate AI report from timeline data sent from frontend"""
+    if not gemini_service:
+        raise HTTPException(status_code=500, detail="Gemini service not initialized")
+    
+    events = timeline_data.get("events", [])
+    if not events:
+        return {"report": "No timeline data provided. Please ensure you have activity to analyze."}
+    
+    report = await gemini_service.generate_daily_report(events)
+    return {"report": report}
+
 @app.get("/suggestions")
 async def get_suggestions():
     """Get smart suggestions based on activity"""

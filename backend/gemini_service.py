@@ -10,33 +10,56 @@ class GeminiService:
             raise ValueError("GEMINI_API_KEY environment variable is required")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash-lite')
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
     
     def _format_events_for_ai(self, events: List[Dict[str, Any]]) -> str:
-        """Format events for AI consumption"""
+        """Format events for AI consumption with detailed information"""
         if not events:
             return "No events found."
         
-        formatted = "Recent activity:\n\n"
+        formatted = "Detailed Activity Timeline:\n\n"
         
         for event in events:
             timestamp = datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
             time_str = timestamp.strftime("%H:%M:%S")
+            event_type = event.get('event_type', 'unknown')
             
-            if event['event_type'].startswith('file_'):
-                formatted += f"[{time_str}] {event['event_type']}: {event.get('file_path', 'Unknown file')}\n"
-            elif event['event_type'].startswith('git_'):
-                if event.get('git_message'):
-                    formatted += f"[{time_str}] {event['event_type']}: {event['git_message'][:50]}...\n"
-                else:
-                    formatted += f"[{time_str}] {event['event_type']}\n"
-            elif event['event_type'].startswith('browser_'):
-                if event.get('title'):
-                    formatted += f"[{time_str}] {event['event_type']}: {event['title']}\n"
-                elif event.get('url'):
-                    formatted += f"[{time_str}] {event['event_type']}: {event['url']}\n"
-                else:
-                    formatted += f"[{time_str}] {event['event_type']}\n"
+            if event_type.startswith('git_'):
+                git_hash = event.get('git_hash', '')
+                git_message = event.get('git_message', '')
+                details = event.get('details', {})
+                author = details.get('author', 'Unknown')
+                files_changed = details.get('files_changed', 0)
+                
+                formatted += f"🔧 [{time_str}] {event_type.replace('_', ' ').title()}\n"
+                formatted += f"   Commit Hash: {git_hash}\n"
+                formatted += f"   Message: {git_message}\n"
+                formatted += f"   Author: {author}\n"
+                formatted += f"   Total Files Changed: {files_changed}\n"
+                
+                if 'files' in details and details['files']:
+                    formatted += "   File Changes:\n"
+                    for file_info in details['files']:
+                        path = file_info.get('path', 'Unknown')
+                        insertions = file_info.get('insertions', 0)
+                        deletions = file_info.get('deletions', 0)
+                        lines = file_info.get('lines', 0)
+                        formatted += f"     📄 {path}\n"
+                        formatted += f"        +{insertions} additions, -{deletions} deletions ({lines} total lines)\n"
+                formatted += "\n"
+                
+            elif event_type.startswith('file_'):
+                file_path = event.get('file_path', 'Unknown file')
+                formatted += f"📁 [{time_str}] {event_type.replace('_', ' ').title()}\n"
+                formatted += f"   File Path: {file_path}\n"
+                formatted += f"   Action: {event_type.replace('file_', '').replace('_', ' ').title()}\n\n"
+                
+            elif event_type.startswith('browser_'):
+                url = event.get('url', 'Unknown URL')
+                title = event.get('title', 'Unknown page')
+                formatted += f"🌐 [{time_str}] {event_type.replace('_', ' ').title()}\n"
+                formatted += f"   Page Title: {title}\n"
+                formatted += f"   URL: {url}\n\n"
         
         return formatted
     
@@ -48,18 +71,26 @@ class GeminiService:
         events_text = self._format_events_for_ai(events)
         
         prompt = f"""
-        Analyze the following work activity data and create a concise, insightful daily productivity report.
-        Focus on patterns, productivity insights, and actionable observations.
+        Analyze the following work activity data and create a specific, concise daily productivity report.
+        Focus on exact file changes, git interactions, and detailed coding activity.
         
         {events_text}
         
-        Please provide:
-        1. A brief summary of the day's activity
-        2. Key productivity patterns (coding vs browsing, commit frequency, etc.)
-        3. Notable achievements or milestones
-        4. One actionable suggestion for tomorrow
+        Please provide a structured report with:
+        1. **Activity Summary**: List specific files created/modified and git commits made
+        2. **Git Activity**: Detail each commit with hash, message, and files changed
+        3. **File Changes**: Specify which files were edited, created, or deleted
+        4. **Productivity Insights**: Coding patterns, commit frequency, and work flow
+        5. **Recommendations**: Specific actionable advice based on the actual work done
         
-        Keep it concise but insightful, like a personal productivity coach.
+        Be precise about:
+        - Exact file paths and names
+        - Git commit hashes and messages
+        - Number of lines added/removed per file
+        - Time patterns of activity
+        - Specific achievements and milestones
+        
+        Keep it detailed but concise, focusing on concrete actions and measurable progress.
         """
         
         try:

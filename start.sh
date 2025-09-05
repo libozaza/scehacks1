@@ -1,4 +1,4 @@
-eract#!/bin/bash
+eractrackincking #!/bin/bash
 
 # What Did I Just Do? - Start Script
 echo "🚀 Starting What Did I Just Do? - Personal Work Activity Tracker"
@@ -162,6 +162,7 @@ echo -e "${YELLOW}💡 Git tracking will monitor your repository for commits and
 
 # Initialize git tracking status
 GIT_REPO_STARTED=0
+TRACKED_REPO_PATH=""
 
 # Function to start git tracking
 start_git_tracking() {
@@ -176,6 +177,7 @@ start_git_tracking() {
     if echo "$response" | grep -q "Started tracking"; then
         echo -e "${GREEN}✅ Git tracking started successfully${NC}"
         GIT_REPO_STARTED=1
+        TRACKED_REPO_PATH="$repo_path"
         return 0
     else
         echo -e "${RED}❌ Failed to start Git tracking: $response${NC}"
@@ -192,14 +194,17 @@ if [ -d ".git" ]; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         start_git_tracking "$current_dir"
+        if [ $? -eq 0 ]; then
+            GIT_REPO_STARTED=1
+        fi
     fi
 fi
 
 # If no git repo detected or user declined, prompt for path
-if [ -z "$GIT_REPO_STARTED" ]; then
+if [ "$GIT_REPO_STARTED" -eq 0 ]; then
     echo -e "${YELLOW}📁 Please enter the path to your Git repository to track:${NC}"
     echo -e "${BLUE}   (Leave empty to skip Git tracking)${NC}"
-    read -p "   Git repo path: " git_repo_path
+read -p "   Git repo path: " git_repo_path
     
     if [ ! -z "$git_repo_path" ]; then
         # Expand tilde and resolve relative paths
@@ -207,6 +212,9 @@ if [ -z "$GIT_REPO_STARTED" ]; then
         
         if [ -d "$git_repo_path" ] && [ -d "$git_repo_path/.git" ]; then
             start_git_tracking "$git_repo_path"
+            if [ $? -eq 0 ]; then
+                GIT_REPO_STARTED=1
+            fi
         else
             echo -e "${RED}❌ Invalid Git repository path: $git_repo_path${NC}"
             echo -e "${YELLOW}   Make sure the path exists and contains a .git directory${NC}"
@@ -242,6 +250,13 @@ fi
 
 echo -e "${GREEN}✅ Frontend service started (PID: $FRONTEND_PID)${NC}"
 
+# Display git tracking status
+if [ "$GIT_REPO_STARTED" -eq 1 ]; then
+    echo -e "\n${GREEN}📁 Git tracking active for: $TRACKED_REPO_PATH${NC}"
+else
+    echo -e "\n${YELLOW}⚠️  Git tracking not active${NC}"
+fi
+
 # Display status
 echo -e "\n${GREEN}🎉 All services are running!${NC}"
 echo -e "${BLUE}================================================================${NC}"
@@ -252,6 +267,7 @@ echo -e "${BLUE}================================================================
 echo -e "\n${YELLOW}💡 Tips:${NC}"
 echo -e "   • Visit http://localhost:3000 to start tracking your productivity"
 echo -e "   • Git tracking monitors commits and pushes automatically"
+echo -e "   • To change the tracked directory, restart the script"
 echo -e "   • Install the Chrome extension from the chrome-extension/ folder"
 echo -e "   • Press Ctrl+C to stop all services"
 echo -e "\n${BLUE}📋 Chrome Extension Setup:${NC}"
