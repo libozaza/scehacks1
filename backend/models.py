@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, update
 from sqlalchemy.sql import func
 from database import Base
 from datetime import datetime, timedelta
@@ -95,6 +95,16 @@ class Event(Base):
             events = result.scalars().all()
             return [cls._event_to_dict(event) for event in events]
     
+    @classmethod
+    async def clear_all_events(cls):
+        """Clear all events from the database"""
+        from database import AsyncSessionLocal
+        from sqlalchemy import delete
+        
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(cls))
+            await session.commit()
+    
     @staticmethod
     def _event_to_dict(event) -> Dict[str, Any]:
         """Convert event to dictionary"""
@@ -138,7 +148,7 @@ class RepoPath(Base):
             else:
                 # Deactivate all other paths
                 await session.execute(
-                    select(cls).update().values(is_active=False)
+                    update(cls).values(is_active=False)
                 )
                 
                 # Create new active path

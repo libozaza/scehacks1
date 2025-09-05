@@ -10,7 +10,7 @@ class GeminiService:
             raise ValueError("GEMINI_API_KEY environment variable is required")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('gemini-1.5-flash-lite')
     
     def _format_events_for_ai(self, events: List[Dict[str, Any]]) -> str:
         """Format events for AI consumption"""
